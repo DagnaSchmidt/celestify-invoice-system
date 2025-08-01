@@ -1,56 +1,74 @@
 import { useState, useEffect } from 'react';
-import { Table, Container, Button } from 'reactstrap';
+import { message, Spin } from 'antd';
 import axios from 'axios';
 import { Invoice } from '../../api/db/schema';
 import { useNavigate } from 'react-router-dom';
+import { InvoiceTable } from '@/components/InvoiceTable';
 
 function Invoices() {
     const [invoices, setInvoices] = useState<Invoice[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const navigate = useNavigate();
 
-    useEffect(() => {
-        async function fetchInvoices() {
-            try {
-                const response = await axios.get('api/invoice');
-                setInvoices(response.data);
-            } catch (error) {
-                console.error('Error fetching the invoices', error);
-            }
+    async function fetchInvoices() {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await axios.get('/api/invoice');
+            setInvoices(response.data);
+        } catch (err) {
+            setError('Failed to load invoices.');
+            console.error(err);
+        } finally {
+            setLoading(false);
         }
+    };
 
+    useEffect(() => {
         fetchInvoices();
     }, []);
 
+    async function handleDelete(id: number) {
+        setLoading(true);
+        try {
+            await axios.delete(`/api/invoice/${id}`);
+            message.success('Invoice deleted successfully');
+            fetchInvoices();
+        } catch (err) {
+            message.error('Failed to delete invoice');
+            console.error(err);
+            setLoading(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="text-center p-5">
+                <Spin tip="Loading invoices..." />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="text-red-600 p-5 text-center">
+                {error}
+            </div>
+        );
+    }
+
     return (
-        <Container>
+        <div className="max-w-[900px] mx-auto p-4" >
             <h2>Invoices</h2>
-            <Table striped>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Customer Details</th>
-                        <th>Date</th>
-                        <th>Total Amount</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {invoices.map((invoice: Invoice) => (
-                        <tr key={invoice.id}>
-                            <td>{invoice.id}</td>
-                            <td>{invoice.customerDetails}</td>
-                            <td>{new Date(invoice.date).toLocaleDateString()}</td>
-                            <td>${Number(invoice.totalAmount).toFixed(2)}</td>
-                            <td>
-                                <Button color="primary" onClick={() => navigate(`/invoice/${invoice.id}`)}>View</Button>
-                                {/* TODO:Add Edit, Delete buttons */}
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </Table>
-        </Container>
+            <InvoiceTable
+                invoices={invoices}
+                onDelete={handleDelete}
+                onView={(id) => navigate(`/invoice/${id}`)}
+                onEdit={(id) => navigate(`/invoice/edit/${id}`)}
+            />
+        </div>
     );
 }
 
